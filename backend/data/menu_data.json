@@ -1,0 +1,26 @@
+{
+  "宫保鸡丁": {
+    "price": 28.0,
+    "image": null
+  },
+  "鱼香肉丝": {
+    "price": 24.0,
+    "image": null
+  },
+  "麻婆豆腐": {
+    "price": 22.0,
+    "image": null
+  },
+  "黑椒牛柳": {
+    "price": 46.0,
+    "image": null
+  },
+  "米饭": {
+    "price": 3.0,
+    "image": null
+  },
+  "酸奶": {
+    "price": 15.0,
+    "image": null
+  }
+}
