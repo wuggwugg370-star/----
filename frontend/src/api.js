@@ -1,17 +1,14 @@
 const API_BASE = '/api';
 
+// 通用请求处理
 async function request(endpoint, options = {}) {
-  try {
-    const res = await fetch(`${API_BASE}${endpoint}`, options);
-    const json = await res.json();
-    if (json.code !== 200) throw new Error(json.msg || 'Error');
-    return json.data || json; 
-  } catch (error) {
-    console.error(`API Error: ${endpoint}`, error);
-    throw error;
-  }
+  const res = await fetch(`${API_BASE}${endpoint}`, options);
+  const json = await res.json();
+  if (json.code !== 200) throw new Error(json.msg || 'Error');
+  return json.data || json;
 }
 
+// === 核心接口 ===
 export const getMenu = () => request('/menu');
 
 export const submitOrder = (items) => request('/order', {
@@ -20,14 +17,13 @@ export const submitOrder = (items) => request('/order', {
   body: JSON.stringify({ items })
 });
 
-// 新增：管理员登录
+// === 管理员接口 (你之前缺少的！) ===
 export const adminLogin = (password) => request('/admin/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ password })
 });
 
-// 新增：保存/添加菜品
 export const saveItem = (itemData) => request('/admin/item', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
