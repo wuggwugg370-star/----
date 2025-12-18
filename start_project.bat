@@ -1,43 +1,67 @@
 @echo off
-:: 强制切换为 UTF-8 编码
+:: 确保在脚本所在目录运行
+cd /d "%~dp0"
 chcp 65001 >nul
-title Neo Dining Launcher
+title Neo Dining Ultimate Launcher
 color 0A
 cls
 
 echo ========================================================
-echo   Neo Dining - 调试版启动器
+echo   Neo Dining - 强力启动修复版
 echo ========================================================
-
 echo.
-echo [1/3] 正在检查后端环境...
-:: [修改] 移除了 >nul，让您能看到报错
-pip install -r backend/requirements.txt
-if %errorlevel% neq 0 (
-    color 0C
-    echo.
-    echo [ERROR] Python 依赖安装失败！请检查网络或 Python 配置。
-    pause
-    exit /b
-)
-start "Backend Server" cmd /k "chcp 65001 && cd backend && python app.py"
-
+echo 请选择操作模式:
+echo [1] 直接启动 (如果之前运行正常)
+echo [2] 清理并重新安装依赖 (如果启动报错或白屏，选这个!)
 echo.
-echo [2/3] 正在检查前端环境...
+set /p choice=请输入数字 [1 或 2]: 
+
+if "%choice%"=="2" goto CLEAN_INSTALL
+goto START_APP
+
+:CLEAN_INSTALL
+echo.
+echo [!] 正在删除旧的依赖文件...
+if exist "frontend\node_modules" rmdir /s /q "frontend\node_modules"
+if exist "frontend\package-lock.json" del "frontend\package-lock.json"
+echo [!] 正在清理缓存并重新安装...
 cd frontend
-:: [修改] 移除了 >nul，让您能看到报错
-if not exist node_modules (
-    echo 正在安装前端依赖（npm install），请耐心等待...
+call npm install
+cd ..
+echo [!] 依赖重装完成!
+
+:START_APP
+echo.
+echo [Step 1] 启动后端...
+:: 检查 backend 目录
+if not exist backend (
+    echo [ERROR] 找不到 backend 目录! 请确认脚本位置。
+    pause
+    exit
+)
+start "Backend Server" cmd /k "chcp 65001 && cd backend && pip install -r requirements.txt && python app.py"
+
+echo.
+echo [Step 2] 启动前端...
+:: 检查 frontend 目录
+if not exist frontend (
+    echo [ERROR] 找不到 frontend 目录!
+    pause
+    exit
+)
+cd frontend
+:: 检查是否真的安装了 vite
+if not exist "node_modules\.bin\vite.cmd" (
+    echo [WARNING] 未检测到 Vite，正在尝试自动修复...
     call npm install
 )
-
-echo.
-echo [3/3] 启动前端...
-:: 启动前端
 start "Frontend Server" cmd /k "chcp 65001 && npm run dev"
 cd ..
 
 echo.
-echo 启动指令已发送。如果不自动弹出浏览器，请检查新窗口内的报错。
-echo.
+echo ========================================================
+echo   正在尝试打开浏览器...
+echo   请检查弹出的两个新窗口是否有红色报错。
+echo   如果浏览器看到白屏，请按 F12 看 Console 面板。
+echo ========================================================
 pause
