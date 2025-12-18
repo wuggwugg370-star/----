@@ -12,16 +12,10 @@ const state = {
 // === 初始化 ===
 async function init() {
   console.log('🚀 系统启动...');
-  
-  // 1. 先绑定事件 (确保按钮可点击)
   setupEventListeners();
-
-  // 2. 恢复管理员状态
   if(sessionStorage.getItem('isAdmin') === 'true') {
     enableAdminMode();
   }
-
-  // 3. 加载数据
   await loadMenuData();
 }
 
@@ -36,7 +30,10 @@ async function loadMenuData() {
   } catch (err) {
     console.error('❌ 数据加载失败:', err);
     if(loading) loading.innerText = '无法连接服务器';
-    alert("连接后端失败，请检查 Python 是否运行！");
+    // 只有在完全加载不出数据时才弹窗，避免打扰
+    if(Object.keys(state.menu).length === 0) {
+        alert("连接后端失败，请检查 Python 黑窗口是否运行！");
+    }
   } finally {
     if(loading) loading.style.display = 'none';
   }
@@ -71,7 +68,7 @@ function renderMenu() {
   
   const items = Object.entries(state.menu);
   if (items.length === 0) {
-    grid.innerHTML = '<div style="padding:20px;">暂无菜品</div>';
+    grid.innerHTML = '<div style="padding:20px;">暂无菜品<br>请点击右上角添加</div>';
     return;
   }
 
@@ -99,7 +96,6 @@ function renderMenu() {
       </div>
     `;
 
-    // 绑定事件
     const addBtn = card.querySelector('.add-btn');
     if(addBtn) addBtn.onclick = () => addToCart(name);
     
@@ -191,13 +187,11 @@ function openModal(name = '', info = {}) {
   safeSetText('modal-title', name ? '编辑菜品' : '添加新菜品');
 }
 
-// === 事件监听 (修复版) ===
+// === 事件监听 (已修复表单提交问题) ===
 function setupEventListeners() {
-  // 安全绑定辅助函数
   const bind = (id, event, handler) => {
     const el = document.getElementById(id);
     if (el) el.addEventListener(event, handler);
-    else console.warn(`⚠️ 未找到元素: #${id}`);
   };
 
   bind('admin-login-btn', 'click', async () => {
@@ -210,7 +204,6 @@ function setupEventListeners() {
 
   bind('logout-btn', 'click', disableAdminMode);
   
-  // 搜索
   bind('search-trigger', 'click', () => {
     const el = document.getElementById('search-overlay');
     if(el) el.classList.add('active');
@@ -221,7 +214,6 @@ function setupEventListeners() {
   });
   bind('global-search', 'input', filterMenu);
 
-  // 购物车开关
   const toggleCart = (open) => {
     const drawer = document.getElementById('cart-drawer');
     const bg = document.getElementById('drawer-backdrop');
@@ -237,12 +229,11 @@ function setupEventListeners() {
   bind('close-drawer', 'click', () => toggleCart(false));
   bind('drawer-backdrop', 'click', () => toggleCart(false));
 
-  // 结账
   bind('checkout-btn', 'click', async () => {
     const items = Object.entries(state.cart).flatMap(([n, c]) => Array(c).fill(n));
     await submitOrder(items);
     state.cart = {}; updateCartUI();
-    toggleCart(false);
+    toggleDrawer(false);
     const success = document.getElementById('success-modal');
     if(success) success.classList.add('show');
   });
@@ -251,23 +242,40 @@ function setupEventListeners() {
     if(success) success.classList.remove('show');
   });
 
-  // 添加/保存
   bind('add-item-btn', 'click', () => openModal());
   bind('modal-cancel', 'click', () => safeDisplay('item-modal', 'none'));
   
+  // --- 关键修复：表单提交错误处理 ---
   const form = document.getElementById('item-form');
   if(form) {
     form.onsubmit = async (e) => {
-      e.preventDefault();
-      const data = {
-        name: document.getElementById('input-name').value,
-        price: document.getElementById('input-price').value,
-        category: document.getElementById('input-category').value,
-        image: document.getElementById('input-image').value
-      };
-      await saveItem(data);
-      safeDisplay('item-modal', 'none');
-      loadMenuData();
+      e.preventDefault(); // 1. 阻止默认刷新
+      
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if(submitBtn) submitBtn.innerText = "保存中...";
+
+      try {
+        const data = {
+          name: document.getElementById('input-name').value,
+          price: document.getElementById('input-price').value,
+          category: document.getElementById('input-category').value,
+          image: document.getElementById('input-image').value
+        };
+
+        // 2. 发送请求
+        await saveItem(data);
+        
+        // 3. 成功后操作
+        alert("🎉 保存成功！");
+        safeDisplay('item-modal', 'none');
+        loadMenuData(); // 刷新列表
+
+      } catch (err) {
+        // 4. 失败报错
+        alert("❌ 保存失败：\n" + err.message);
+      } finally {
+         if(submitBtn) submitBtn.innerText = "保存";
+      }
     };
   }
 }
