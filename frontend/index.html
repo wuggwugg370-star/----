@@ -10,12 +10,10 @@
     <nav>
       <div class="container nav-content">
         <div class="brand">Neo Dining</div>
-        
         <div class="nav-actions">
-          <div class="admin-link" id="admin-login-btn">Admin</div>
+          <button id="admin-login-btn" style="border:none;background:none;cursor:pointer;margin-right:15px;color:#666;">Admin</button>
           
           <div class="search-trigger" id="search-trigger">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             <span>Search</span>
           </div>
           <div class="cart-icon-btn" id="cart-toggle-btn">
@@ -30,78 +28,46 @@
     </div>
 
     <main class="container">
-      <div id="loading" class="loading-spinner">Loading Menu...</div>
-      
-      <div id="admin-toolbar" class="admin-toolbar" style="display: none;">
-        <span>🔧 Admin Mode Active</span>
-        <button id="add-item-btn" class="btn primary-btn">+ Add New Item</button>
-        <button id="logout-btn" class="btn text-btn">Exit</button>
+      <div id="admin-toolbar" style="display:none; margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; align-items: center; gap: 15px;">
+        <span style="font-weight:bold;">🔧 管理员模式</span>
+        <button id="add-item-btn" style="padding: 5px 15px; background: #0071e3; color: white; border: none; border-radius: 4px; cursor: pointer;">+ 添加新菜品</button>
+        <button id="logout-btn" style="padding: 5px 15px; background: #e30000; color: white; border: none; border-radius: 4px; cursor: pointer;">退出</button>
       </div>
 
+      <div id="loading" class="loading-spinner">Loading Menu...</div>
       <div id="menu-grid" class="grid"></div>
     </main>
 
-    <div id="search-overlay" class="search-overlay">
-      <div class="search-content">
-        <div class="search-input-wrapper">
-          <input type="text" id="global-search" placeholder="Search menu..." autocomplete="off">
-          <button id="close-search" class="close-btn">Cancel</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="cart-drawer" class="cart-drawer">
-      <div class="drawer-header">
-        <h2>Shopping Bag</h2>
-        <button id="close-drawer" class="close-icon">×</button>
-      </div>
-      <div id="cart-items" class="cart-items-container"></div>
-      <div class="drawer-footer">
-        <div class="drawer-total">
-          <span>Total</span>
-          <span id="drawer-total-price">¥0.00</span>
-        </div>
-        <button id="checkout-btn" class="checkout-btn" disabled>Check Out</button>
-      </div>
-    </div>
-    <div id="drawer-backdrop" class="drawer-backdrop"></div>
-
-    <div id="item-modal" class="modal">
-      <div class="modal-content">
-        <h2 id="modal-title">Add Item</h2>
-        <form id="item-form">
-          <div class="form-group">
-            <label>Dish Name</label>
-            <input type="text" id="input-name" required placeholder="e.g. Spicy Chicken">
-          </div>
-          <div class="form-group">
-            <label>Price (¥)</label>
-            <input type="number" id="input-price" step="0.1" required placeholder="28.0">
-          </div>
-          <div class="form-group">
-            <label>Category</label>
-            <input type="text" id="input-category" required placeholder="e.g. Main Course" list="cat-suggestions">
-            <datalist id="cat-suggestions"></datalist>
-          </div>
-          <div class="form-group">
-            <label>Image URL</label>
-            <input type="url" id="input-image" placeholder="http://...">
-            <small>Use online image link (e.g. Unsplash)</small>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn" id="modal-cancel">Cancel</button>
-            <button type="submit" class="btn primary-btn">Save</button>
+    <div id="item-modal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+      <div style="background:white; padding:2rem; border-radius:12px; width:90%; max-width:400px;">
+        <h2 id="modal-title">编辑菜品</h2>
+        <form id="item-form" style="display:flex; flex-direction:column; gap:10px;">
+          <input type="text" id="input-name" placeholder="菜名 (Name)" required style="padding:8px;">
+          <input type="number" id="input-price" placeholder="价格 (Price)" step="0.1" required style="padding:8px;">
+          <input type="text" id="input-category" placeholder="分类 (Category)" required style="padding:8px;">
+          <input type="url" id="input-image" placeholder="图片链接 (Image URL)" style="padding:8px;">
+          <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
+            <button type="button" id="modal-cancel" style="padding:8px 15px;">取消</button>
+            <button type="submit" style="padding:8px 15px; background:#0071e3; color:white; border:none;">保存</button>
           </div>
         </form>
       </div>
     </div>
 
-    <div id="success-modal" class="success-modal">
-      <div class="success-content">
-        <div class="checkmark-circle"><div class="checkmark draw"></div></div>
-        <h2>Order Confirmed!</h2>
-        <button id="success-close-btn" class="btn success-btn">Close</button>
+    <div id="search-overlay" class="search-overlay">
+      <div class="search-content">
+         <input type="text" id="global-search" placeholder="Search menu...">
+         <button id="close-search">Close</button>
       </div>
+    </div>
+    <div id="cart-drawer" class="cart-drawer">
+      <div class="drawer-header"><h2>Shopping Bag</h2><button id="close-drawer">×</button></div>
+      <div id="cart-items"></div>
+      <div class="drawer-footer"><span id="drawer-total-price">¥0.00</span><button id="checkout-btn">Check Out</button></div>
+    </div>
+    <div id="drawer-backdrop" class="drawer-backdrop"></div>
+    <div id="success-modal" class="success-modal">
+       <div class="success-content"><h2>Success!</h2><button id="success-close-btn">Close</button></div>
     </div>
 
     <script type="module" src="/src/main.js"></script>
