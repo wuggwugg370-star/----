@@ -9,47 +9,46 @@ const state = {
   isAdmin: false
 };
 
-// === 1. 初始化入口 (入口函数) ===
+// === 初始化 ===
 async function init() {
-  console.log('🚀 系统正在启动...');
+  console.log('🚀 系统启动...');
   
-  // 1.1 绑定事件 (先绑定，防止按钮无反应)
+  // 1. 先绑定事件 (确保按钮可点击)
   setupEventListeners();
 
-  // 1.2 恢复登录状态
+  // 2. 恢复管理员状态
   if(sessionStorage.getItem('isAdmin') === 'true') {
     enableAdminMode();
   }
 
-  // 1.3 加载数据
+  // 3. 加载数据
   await loadMenuData();
 }
 
-// === 2. 数据加载 ===
+// === 数据加载 ===
 async function loadMenuData() {
   const loading = document.getElementById('loading');
   try {
     state.menu = await getMenu();
-    console.log('✅ 菜单加载成功:', Object.keys(state.menu).length, '个菜品');
-    
+    console.log('✅ 菜单数据:', state.menu);
     renderCategories();
     renderMenu();
   } catch (err) {
-    console.error('❌ 无法加载菜单:', err);
-    if(loading) loading.innerText = '无法连接服务器，请检查后端是否启动';
-    alert("连接失败：\n请确认黑窗口 (Python) 是否正在运行！");
+    console.error('❌ 数据加载失败:', err);
+    if(loading) loading.innerText = '无法连接服务器';
+    alert("连接后端失败，请检查 Python 是否运行！");
   } finally {
     if(loading) loading.style.display = 'none';
   }
 }
 
-// === 3. 渲染逻辑 ===
+// === 渲染逻辑 ===
 function renderCategories() {
   const categories = new Set(['All']);
   Object.values(state.menu).forEach(item => categories.add(item.category || '其他'));
   
   const bar = document.getElementById('category-bar');
-  if (!bar) return; // 防御性检查
+  if(!bar) return;
   bar.innerHTML = '';
   
   categories.forEach(cat => {
@@ -67,27 +66,25 @@ function renderCategories() {
 
 function renderMenu() {
   const grid = document.getElementById('menu-grid');
-  if (!grid) return;
+  if(!grid) return;
   grid.innerHTML = '';
   
   const items = Object.entries(state.menu);
   if (items.length === 0) {
-    grid.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">暂无菜品<br>请管理员添加</div>';
+    grid.innerHTML = '<div style="padding:20px;">暂无菜品</div>';
     return;
   }
 
   items.forEach(([name, info]) => {
     const card = document.createElement('div');
     card.className = 'card';
-    card.dataset.category = info.category || '其他';
     card.dataset.name = name;
+    card.dataset.category = info.category || '其他';
     
-    // 管理员编辑按钮
     const editBtn = state.isAdmin 
-      ? `<button class="edit-btn" style="position:absolute;top:10px;right:10px;z-index:10;background:white;padding:5px 10px;border-radius:15px;border:none;box-shadow:0 2px 5px rgba(0,0,0,0.2);cursor:pointer;">✏️ 编辑</button>` 
+      ? `<button class="edit-btn" style="position:absolute;top:10px;right:10px;z-index:10;background:white;padding:5px;cursor:pointer;">✏️ 编辑</button>` 
       : '';
 
-    // 图片容错
     const imgUrl = (info.image && info.image.startsWith('http')) 
       ? info.image 
       : 'https://via.placeholder.com/300x200?text=No+Image';
@@ -119,37 +116,26 @@ function renderMenu() {
   filterMenu();
 }
 
-// 搜索筛选
 function filterMenu() {
   const searchInput = document.getElementById('global-search');
   const grid = document.getElementById('menu-grid');
   if (!grid || !searchInput) return;
 
   const keyword = searchInput.value.toLowerCase().trim();
-  
   Array.from(grid.children).forEach(card => {
     if(!card.dataset.name) return;
     const name = card.dataset.name.toLowerCase();
     const cat = card.dataset.category;
-    
     const matchCat = state.activeCategory === 'All' || cat === state.activeCategory;
     const matchKey = name.includes(keyword);
-    
     card.style.display = (matchCat && matchKey) ? 'flex' : 'none';
   });
 }
 
-// === 4. 购物车逻辑 ===
+// === 购物车 ===
 function addToCart(name) {
   state.cart[name] = (state.cart[name] || 0) + 1;
   updateCartUI();
-  
-  // 购物车图标动画
-  const btn = document.getElementById('cart-toggle-btn');
-  if(btn) {
-    btn.style.transform = 'scale(1.2)';
-    setTimeout(() => btn.style.transform = 'scale(1)', 200);
-  }
 }
 
 function updateCartUI() {
@@ -157,33 +143,26 @@ function updateCartUI() {
   if(!container) return;
   container.innerHTML = '';
   
-  let total = 0;
-  let count = 0;
-  
+  let total = 0, count = 0;
   Object.entries(state.cart).forEach(([name, qty]) => {
     const info = state.menu[name];
     if(info) {
       total += info.price * qty;
       count += qty;
-      
-      const row = document.createElement('div');
-      row.style.cssText = 'display:flex;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #eee;';
-      row.innerHTML = `
-        <span>${name} <small>x${qty}</small></span>
-        <b>¥${(info.price * qty).toFixed(2)}</b>
-      `;
-      container.appendChild(row);
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex;justify-content:space-between;margin-bottom:5px;';
+      div.innerHTML = `<span>${name} x${qty}</span> <b>¥${(info.price*qty).toFixed(2)}</b>`;
+      container.appendChild(div);
     }
   });
 
   safeSetText('drawer-total-price', `¥${total.toFixed(2)}`);
   safeSetText('cart-badge', count);
-  
   const checkoutBtn = document.getElementById('checkout-btn');
   if(checkoutBtn) checkoutBtn.disabled = (count === 0);
 }
 
-// === 5. 管理员与交互逻辑 ===
+// === 管理员与交互 ===
 function enableAdminMode() {
   state.isAdmin = true;
   safeDisplay('admin-toolbar', 'flex');
@@ -204,7 +183,7 @@ function openModal(name = '', info = {}) {
   safeDisplay('item-modal', 'flex');
   safeSetValue('input-name', name);
   const nameInput = document.getElementById('input-name');
-  if(nameInput) nameInput.disabled = !!name; // 编辑模式禁止改名
+  if(nameInput) nameInput.disabled = !!name; 
   
   safeSetValue('input-price', info.price || '');
   safeSetValue('input-category', info.category || '');
@@ -212,88 +191,72 @@ function openModal(name = '', info = {}) {
   safeSetText('modal-title', name ? '编辑菜品' : '添加新菜品');
 }
 
-// === 6. 事件监听 (核心修复部分) ===
+// === 事件监听 (修复版) ===
 function setupEventListeners() {
-  console.log('🔧 正在绑定按钮事件...');
-
-  // 辅助函数：安全绑定
+  // 安全绑定辅助函数
   const bind = (id, event, handler) => {
     const el = document.getElementById(id);
-    if (el) {
-      el.addEventListener(event, handler);
-    } else {
-      console.warn(`⚠️警告: 找不到元素 #${id}，该功能可能无法使用`);
-    }
+    if (el) el.addEventListener(event, handler);
+    else console.warn(`⚠️ 未找到元素: #${id}`);
   };
 
-  // 管理员登录
   bind('admin-login-btn', 'click', async () => {
-    const pwd = prompt("请输入管理员密码 (演示密码: admin123):");
-    if (!pwd) return;
-    try {
-      await adminLogin(pwd);
-      alert("登录成功！");
-      enableAdminMode();
-    } catch (e) {
-      alert("密码错误！");
+    const pwd = prompt("请输入管理员密码 (admin123):");
+    if(pwd) {
+      try { await adminLogin(pwd); enableAdminMode(); } 
+      catch(e) { alert("密码错误"); }
     }
   });
 
-  // 退出登录
   bind('logout-btn', 'click', disableAdminMode);
-
-  // 搜索功能 (点击图标和输入文字)
+  
+  // 搜索
   bind('search-trigger', 'click', () => {
-    const overlay = document.getElementById('search-overlay');
-    if(overlay) overlay.classList.add('active');
-    setTimeout(() => {
-        const input = document.getElementById('global-search');
-        if(input) input.focus();
-    }, 100);
+    const el = document.getElementById('search-overlay');
+    if(el) el.classList.add('active');
   });
   bind('close-search', 'click', () => {
-    const overlay = document.getElementById('search-overlay');
-    if(overlay) overlay.classList.remove('active');
+    const el = document.getElementById('search-overlay');
+    if(el) el.classList.remove('active');
   });
   bind('global-search', 'input', filterMenu);
 
-  // 购物车抽屉
-  const toggleDrawer = (open) => {
+  // 购物车开关
+  const toggleCart = (open) => {
     const drawer = document.getElementById('cart-drawer');
-    const backdrop = document.getElementById('drawer-backdrop');
-    if (open) {
-      if(drawer) drawer.classList.add('open');
-      if(backdrop) backdrop.classList.add('open');
+    const bg = document.getElementById('drawer-backdrop');
+    if(open) {
+        if(drawer) drawer.classList.add('open');
+        if(bg) bg.classList.add('open');
     } else {
-      if(drawer) drawer.classList.remove('open');
-      if(backdrop) backdrop.classList.remove('open');
+        if(drawer) drawer.classList.remove('open');
+        if(bg) bg.classList.remove('open');
     }
   };
-  bind('cart-toggle-btn', 'click', () => toggleDrawer(true));
-  bind('close-drawer', 'click', () => toggleDrawer(false));
-  bind('drawer-backdrop', 'click', () => toggleDrawer(false));
+  bind('cart-toggle-btn', 'click', () => toggleCart(true));
+  bind('close-drawer', 'click', () => toggleCart(false));
+  bind('drawer-backdrop', 'click', () => toggleCart(false));
 
   // 结账
   bind('checkout-btn', 'click', async () => {
     const items = Object.entries(state.cart).flatMap(([n, c]) => Array(c).fill(n));
     await submitOrder(items);
-    state.cart = {};
-    updateCartUI();
-    toggleDrawer(false);
-    const successModal = document.getElementById('success-modal');
-    if(successModal) successModal.classList.add('show');
+    state.cart = {}; updateCartUI();
+    toggleCart(false);
+    const success = document.getElementById('success-modal');
+    if(success) success.classList.add('show');
   });
   bind('success-close-btn', 'click', () => {
-    const successModal = document.getElementById('success-modal');
-    if(successModal) successModal.classList.remove('show');
+    const success = document.getElementById('success-modal');
+    if(success) success.classList.remove('show');
   });
 
-  // 添加/保存菜品
+  // 添加/保存
   bind('add-item-btn', 'click', () => openModal());
   bind('modal-cancel', 'click', () => safeDisplay('item-modal', 'none'));
   
   const form = document.getElementById('item-form');
-  if (form) {
+  if(form) {
     form.onsubmit = async (e) => {
       e.preventDefault();
       const data = {
@@ -304,29 +267,15 @@ function setupEventListeners() {
       };
       await saveItem(data);
       safeDisplay('item-modal', 'none');
-      await loadMenuData(); // 重新加载
+      loadMenuData();
     };
   }
 }
 
-// === 工具函数 ===
-function safeDisplay(id, display) {
-  const el = document.getElementById(id);
-  if(el) el.style.display = display;
-}
-function safeSetText(id, text) {
-  const el = document.getElementById(id);
-  if(el) el.innerText = text;
-}
-function safeSetValue(id, val) {
-  const el = document.getElementById(id);
-  if(el) el.value = val;
-}
+// 辅助工具
+function safeDisplay(id, val) { const el = document.getElementById(id); if(el) el.style.display = val; }
+function safeSetText(id, val) { const el = document.getElementById(id); if(el) el.innerText = val; }
+function safeSetValue(id, val) { const el = document.getElementById(id); if(el) el.value = val; }
 
-// === 启动应用 ===
-// 使用 DOMContentLoaded 确保 HTML 加载完后再执行 JS
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
-}
+// 启动
+init();
