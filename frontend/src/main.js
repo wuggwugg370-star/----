@@ -1,13 +1,7 @@
 import './styles/main.css';
 import { getMenu, submitOrder, adminLogin, saveItem } from './api.js';
 
-// === 🚨 诊断代码 ===
-window.onerror = function(msg, url, line) {
-  alert("❌ JS执行出错:\n" + msg + "\n\n行号: " + line);
-};
-console.log('🚀 前端代码开始运行...');
-// ===================
-
+// === 全局状态 ===
 const state = {
   menu: {},
   cart: {},
@@ -15,33 +9,47 @@ const state = {
   isAdmin: false
 };
 
+// === 1. 初始化入口 (入口函数) ===
 async function init() {
+  console.log('🚀 系统正在启动...');
+  
+  // 1.1 绑定事件 (先绑定，防止按钮无反应)
+  setupEventListeners();
+
+  // 1.2 恢复登录状态
+  if(sessionStorage.getItem('isAdmin') === 'true') {
+    enableAdminMode();
+  }
+
+  // 1.3 加载数据
+  await loadMenuData();
+}
+
+// === 2. 数据加载 ===
+async function loadMenuData() {
   const loading = document.getElementById('loading');
   try {
-    console.log('📡 正在请求菜单...');
     state.menu = await getMenu();
-    console.log('✅ 菜单获取成功:', state.menu);
-
+    console.log('✅ 菜单加载成功:', Object.keys(state.menu).length, '个菜品');
+    
     renderCategories();
     renderMenu();
-    
-    if(sessionStorage.getItem('isAdmin') === 'true') enableAdmin();
-
   } catch (err) {
-    console.error(err);
-    alert("⚠️ 后端连接失败！\n请确认黑窗口是否在运行 'python app.py'\n\n错误: " + err.message);
-    if(loading) loading.innerText = '服务不可用';
+    console.error('❌ 无法加载菜单:', err);
+    if(loading) loading.innerText = '无法连接服务器，请检查后端是否启动';
+    alert("连接失败：\n请确认黑窗口 (Python) 是否正在运行！");
   } finally {
     if(loading) loading.style.display = 'none';
   }
 }
 
+// === 3. 渲染逻辑 ===
 function renderCategories() {
   const categories = new Set(['All']);
   Object.values(state.menu).forEach(item => categories.add(item.category || '其他'));
   
   const bar = document.getElementById('category-bar');
-  if(!bar) return;
+  if (!bar) return; // 防御性检查
   bar.innerHTML = '';
   
   categories.forEach(cat => {
@@ -59,12 +67,12 @@ function renderCategories() {
 
 function renderMenu() {
   const grid = document.getElementById('menu-grid');
-  if(!grid) return;
+  if (!grid) return;
   grid.innerHTML = '';
   
   const items = Object.entries(state.menu);
   if (items.length === 0) {
-    grid.innerHTML = '<div style="padding:20px;">暂无菜品</div>';
+    grid.innerHTML = '<div style="padding:20px;text-align:center;color:#666;">暂无菜品<br>请管理员添加</div>';
     return;
   }
 
@@ -74,11 +82,15 @@ function renderMenu() {
     card.dataset.category = info.category || '其他';
     card.dataset.name = name;
     
+    // 管理员编辑按钮
     const editBtn = state.isAdmin 
-      ? `<button class="edit-btn" style="position:absolute;top:10px;right:10px;z-index:10;background:white;padding:5px;cursor:pointer;">✏️ 编辑</button>` 
+      ? `<button class="edit-btn" style="position:absolute;top:10px;right:10px;z-index:10;background:white;padding:5px 10px;border-radius:15px;border:none;box-shadow:0 2px 5px rgba(0,0,0,0.2);cursor:pointer;">✏️ 编辑</button>` 
       : '';
 
-    const imgUrl = info.image || 'https://via.placeholder.com/300x200?text=No+Image';
+    // 图片容错
+    const imgUrl = (info.image && info.image.startsWith('http')) 
+      ? info.image 
+      : 'https://via.placeholder.com/300x200?text=No+Image';
 
     card.innerHTML = `
       <div class="card-img" style="background-image: url('${imgUrl}'); position:relative;">${editBtn}</div>
@@ -90,10 +102,13 @@ function renderMenu() {
       </div>
     `;
 
-    card.querySelector('.add-btn').onclick = () => addToCart(name);
+    // 绑定事件
+    const addBtn = card.querySelector('.add-btn');
+    if(addBtn) addBtn.onclick = () => addToCart(name);
     
     if(state.isAdmin) {
-      card.querySelector('.edit-btn').onclick = (e) => {
+      const editBtnEl = card.querySelector('.edit-btn');
+      if(editBtnEl) editBtnEl.onclick = (e) => {
         e.stopPropagation();
         openModal(name, info);
       };
@@ -104,126 +119,214 @@ function renderMenu() {
   filterMenu();
 }
 
+// 搜索筛选
 function filterMenu() {
+  const searchInput = document.getElementById('global-search');
   const grid = document.getElementById('menu-grid');
-  if(!grid) return;
-  const search = (document.getElementById('global-search').value || '').toLowerCase();
+  if (!grid || !searchInput) return;
+
+  const keyword = searchInput.value.toLowerCase().trim();
   
   Array.from(grid.children).forEach(card => {
     if(!card.dataset.name) return;
     const name = card.dataset.name.toLowerCase();
     const cat = card.dataset.category;
+    
     const matchCat = state.activeCategory === 'All' || cat === state.activeCategory;
-    const matchSearch = name.includes(search);
-    card.style.display = (matchCat && matchSearch) ? 'flex' : 'none';
+    const matchKey = name.includes(keyword);
+    
+    card.style.display = (matchCat && matchKey) ? 'flex' : 'none';
   });
 }
 
-function enableAdmin() {
-  state.isAdmin = true;
-  document.getElementById('admin-toolbar').style.display = 'flex';
-  document.getElementById('admin-login-btn').style.display = 'none';
-  sessionStorage.setItem('isAdmin', 'true');
-  renderMenu();
-}
-
-function disableAdmin() {
-  state.isAdmin = false;
-  document.getElementById('admin-toolbar').style.display = 'none';
-  document.getElementById('admin-login-btn').style.display = 'block';
-  sessionStorage.removeItem('isAdmin');
-  renderMenu();
-}
-
-const modal = document.getElementById('item-modal');
-function openModal(name = '', info = {}) {
-  modal.style.display = 'flex';
-  document.getElementById('input-name').value = name;
-  document.getElementById('input-name').disabled = !!name;
-  document.getElementById('input-price').value = info.price || '';
-  document.getElementById('input-category').value = info.category || '';
-  document.getElementById('input-image').value = info.image || '';
-  document.getElementById('modal-title').innerText = name ? '编辑' : '新增';
-}
-
+// === 4. 购物车逻辑 ===
 function addToCart(name) {
   state.cart[name] = (state.cart[name] || 0) + 1;
   updateCartUI();
+  
+  // 购物车图标动画
+  const btn = document.getElementById('cart-toggle-btn');
+  if(btn) {
+    btn.style.transform = 'scale(1.2)';
+    setTimeout(() => btn.style.transform = 'scale(1)', 200);
+  }
 }
 
 function updateCartUI() {
   const container = document.getElementById('cart-items');
   if(!container) return;
   container.innerHTML = '';
-  let total = 0, count = 0;
+  
+  let total = 0;
+  let count = 0;
+  
   Object.entries(state.cart).forEach(([name, qty]) => {
     const info = state.menu[name];
     if(info) {
-        total += info.price * qty;
-        count += qty;
-        const div = document.createElement('div');
-        div.style.cssText = 'display:flex;justify-content:space-between;margin-bottom:8px;';
-        div.innerHTML = `<span>${name} x${qty}</span> <span>¥${(info.price*qty).toFixed(2)}</span>`;
-        container.appendChild(div);
+      total += info.price * qty;
+      count += qty;
+      
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #eee;';
+      row.innerHTML = `
+        <span>${name} <small>x${qty}</small></span>
+        <b>¥${(info.price * qty).toFixed(2)}</b>
+      `;
+      container.appendChild(row);
     }
   });
-  document.getElementById('drawer-total-price').innerText = '¥' + total.toFixed(2);
-  document.getElementById('cart-badge').innerText = count;
-  document.getElementById('checkout-btn').disabled = count === 0;
+
+  safeSetText('drawer-total-price', `¥${total.toFixed(2)}`);
+  safeSetText('cart-badge', count);
+  
+  const checkoutBtn = document.getElementById('checkout-btn');
+  if(checkoutBtn) checkoutBtn.disabled = (count === 0);
 }
 
-function setupEventListeners() {
-  document.getElementById('admin-login-btn').onclick = async () => {
-    const pwd = prompt("请输入密码:");
-    if(pwd) { try { await adminLogin(pwd); enableAdmin(); } catch(e) { alert("密码错误"); } }
-  };
-  document.getElementById('logout-btn').onclick = disableAdmin;
-  document.getElementById('add-item-btn').onclick = () => openModal();
-  document.getElementById('modal-cancel').onclick = () => modal.style.display = 'none';
+// === 5. 管理员与交互逻辑 ===
+function enableAdminMode() {
+  state.isAdmin = true;
+  safeDisplay('admin-toolbar', 'flex');
+  safeDisplay('admin-login-btn', 'none');
+  sessionStorage.setItem('isAdmin', 'true');
+  renderMenu();
+}
+
+function disableAdminMode() {
+  state.isAdmin = false;
+  safeDisplay('admin-toolbar', 'none');
+  safeDisplay('admin-login-btn', 'block');
+  sessionStorage.removeItem('isAdmin');
+  renderMenu();
+}
+
+function openModal(name = '', info = {}) {
+  safeDisplay('item-modal', 'flex');
+  safeSetValue('input-name', name);
+  const nameInput = document.getElementById('input-name');
+  if(nameInput) nameInput.disabled = !!name; // 编辑模式禁止改名
   
-  document.getElementById('item-form').onsubmit = async (e) => {
-    e.preventDefault();
-    const data = {
-      name: document.getElementById('input-name').value,
-      price: document.getElementById('input-price').value,
-      category: document.getElementById('input-category').value,
-      image: document.getElementById('input-image').value
-    };
-    await saveItem(data);
-    modal.style.display = 'none';
-    loadData();
+  safeSetValue('input-price', info.price || '');
+  safeSetValue('input-category', info.category || '');
+  safeSetValue('input-image', info.image || '');
+  safeSetText('modal-title', name ? '编辑菜品' : '添加新菜品');
+}
+
+// === 6. 事件监听 (核心修复部分) ===
+function setupEventListeners() {
+  console.log('🔧 正在绑定按钮事件...');
+
+  // 辅助函数：安全绑定
+  const bind = (id, event, handler) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener(event, handler);
+    } else {
+      console.warn(`⚠️警告: 找不到元素 #${id}，该功能可能无法使用`);
+    }
   };
 
-  document.getElementById('search-trigger').onclick = () => document.getElementById('search-overlay').classList.add('active');
-  document.getElementById('close-search').onclick = () => document.getElementById('search-overlay').classList.remove('active');
-  document.getElementById('global-search').oninput = filterMenu;
+  // 管理员登录
+  bind('admin-login-btn', 'click', async () => {
+    const pwd = prompt("请输入管理员密码 (演示密码: admin123):");
+    if (!pwd) return;
+    try {
+      await adminLogin(pwd);
+      alert("登录成功！");
+      enableAdminMode();
+    } catch (e) {
+      alert("密码错误！");
+    }
+  });
 
-  const toggleCart = (open) => {
+  // 退出登录
+  bind('logout-btn', 'click', disableAdminMode);
+
+  // 搜索功能 (点击图标和输入文字)
+  bind('search-trigger', 'click', () => {
+    const overlay = document.getElementById('search-overlay');
+    if(overlay) overlay.classList.add('active');
+    setTimeout(() => {
+        const input = document.getElementById('global-search');
+        if(input) input.focus();
+    }, 100);
+  });
+  bind('close-search', 'click', () => {
+    const overlay = document.getElementById('search-overlay');
+    if(overlay) overlay.classList.remove('active');
+  });
+  bind('global-search', 'input', filterMenu);
+
+  // 购物车抽屉
+  const toggleDrawer = (open) => {
     const drawer = document.getElementById('cart-drawer');
     const backdrop = document.getElementById('drawer-backdrop');
-    if(open) { drawer.classList.add('open'); backdrop.classList.add('open'); }
-    else { drawer.classList.remove('open'); backdrop.classList.remove('open'); }
+    if (open) {
+      if(drawer) drawer.classList.add('open');
+      if(backdrop) backdrop.classList.add('open');
+    } else {
+      if(drawer) drawer.classList.remove('open');
+      if(backdrop) backdrop.classList.remove('open');
+    }
   };
-  document.getElementById('cart-toggle-btn').onclick = () => toggleCart(true);
-  document.getElementById('close-drawer').onclick = () => toggleCart(false);
-  document.getElementById('drawer-backdrop').onclick = () => toggleCart(false);
+  bind('cart-toggle-btn', 'click', () => toggleDrawer(true));
+  bind('close-drawer', 'click', () => toggleDrawer(false));
+  bind('drawer-backdrop', 'click', () => toggleDrawer(false));
 
-  document.getElementById('checkout-btn').onclick = async () => {
+  // 结账
+  bind('checkout-btn', 'click', async () => {
     const items = Object.entries(state.cart).flatMap(([n, c]) => Array(c).fill(n));
     await submitOrder(items);
-    state.cart = {}; updateCartUI();
-    toggleCart(false);
-    document.getElementById('success-modal').classList.add('show');
-  };
-  document.getElementById('success-close-btn').onclick = () => document.getElementById('success-modal').classList.remove('show');
+    state.cart = {};
+    updateCartUI();
+    toggleDrawer(false);
+    const successModal = document.getElementById('success-modal');
+    if(successModal) successModal.classList.add('show');
+  });
+  bind('success-close-btn', 'click', () => {
+    const successModal = document.getElementById('success-modal');
+    if(successModal) successModal.classList.remove('show');
+  });
+
+  // 添加/保存菜品
+  bind('add-item-btn', 'click', () => openModal());
+  bind('modal-cancel', 'click', () => safeDisplay('item-modal', 'none'));
+  
+  const form = document.getElementById('item-form');
+  if (form) {
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const data = {
+        name: document.getElementById('input-name').value,
+        price: document.getElementById('input-price').value,
+        category: document.getElementById('input-category').value,
+        image: document.getElementById('input-image').value
+      };
+      await saveItem(data);
+      safeDisplay('item-modal', 'none');
+      await loadMenuData(); // 重新加载
+    };
+  }
 }
 
-async function loadData() {
-  try {
-    state.menu = await getMenu();
-    renderCategories();
-    renderMenu();
-  } catch (err) { console.error(err); }
+// === 工具函数 ===
+function safeDisplay(id, display) {
+  const el = document.getElementById(id);
+  if(el) el.style.display = display;
+}
+function safeSetText(id, text) {
+  const el = document.getElementById(id);
+  if(el) el.innerText = text;
+}
+function safeSetValue(id, val) {
+  const el = document.getElementById(id);
+  if(el) el.value = val;
 }
 
-init();
+// === 启动应用 ===
+// 使用 DOMContentLoaded 确保 HTML 加载完后再执行 JS
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
